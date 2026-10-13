@@ -86,6 +86,12 @@ label{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:.92re
 .pcard .med .meta{color:var(--muted);font-size:.85rem}
 .pcard .fu{margin-top:4px;font-size:.93rem;overflow-wrap:anywhere}
 .medsBtn{width:100%;margin-bottom:12px}
+.rates{text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:.92rem;line-height:1.6}
+.profit{color:var(--good);font-weight:700;font-size:.85rem}
+.money{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.money div{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center;font-size:.85rem;color:var(--muted)}
+.money b{display:block;font-size:1.15rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.money .pf b{color:var(--good)}
 .row .meta{color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}
 .chip{display:inline-block;border-radius:999px;padding:0 10px;font-size:.82rem;font-weight:700;white-space:nowrap}
 .c-full{background:var(--good-bg);color:var(--good)}
@@ -173,14 +179,14 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmtDate=d=>{if(!d)return'';const [y,m,dd]=d.split('-');return dd+'/'+m+'/'+y};
 
 function seed(){
-  const m1={id:uid(),name:'اکسیر ہاضم',type:'سفوف',benefits:'گیس، بدہضمی، پیٹ پھولنا، بھوک کی کمی',dose:'آدھا چمچ کھانے کے بعد پانی سے',price:'300',sample:true};
-  const m2={id:uid(),name:'اعصابی ملین گولی',type:'گولی',benefits:'قبض، پیٹ کی گرانی',dose:'3 گولی رات سوتے وقت',price:'250',sample:true};
-  const m3={id:uid(),name:'شربت بزوری',type:'شربت',benefits:'پیشاب کی جلن، گردے، ورم',dose:'2 چمچ دن میں دو بار',price:'400',sample:true};
+  const m1={id:uid(),name:'اکسیر ہاضم',type:'سفوف',benefits:'گیس، بدہضمی، پیٹ پھولنا، بھوک کی کمی',dose:'آدھا چمچ کھانے کے بعد پانی سے',cost:'200',price:'300',sample:true};
+  const m2={id:uid(),name:'اعصابی ملین گولی',type:'گولی',benefits:'قبض، پیٹ کی گرانی',dose:'3 گولی رات سوتے وقت',cost:'150',price:'250',sample:true};
+  const m3={id:uid(),name:'شربت بزوری',type:'شربت',benefits:'پیشاب کی جلن، گردے، ورم',dose:'2 چمچ دن میں دو بار',cost:'280',price:'400',sample:true};
   const p1={id:uid(),name:'محمد اسلم',phone:'0300-0000000',age:'45',gender:'مرد',address:'لاہور',diseases:'معدے کی گیس، قبض',symptoms:'کھانے کے بعد پیٹ پھولتا ہے، رات کو بے چینی',notes:'',created:today(),sample:true,
-    given:[{id:uid(),date:today(),medId:m1.id,medName:m1.name,qty:'1 ڈبی',dose:m1.dose,days:'15',price:'300',note:''},{id:uid(),date:today(),medId:m2.id,medName:m2.name,qty:'45 گولی',dose:m2.dose,days:'15',price:'250',note:''}],
+    given:[{id:uid(),date:today(),medId:m1.id,medName:m1.name,qty:'1 ڈبی',dose:m1.dose,days:'15',cost:'200',price:'300',note:''},{id:uid(),date:today(),medId:m2.id,medName:m2.name,qty:'45 گولی',dose:m2.dose,days:'15',cost:'150',price:'250',note:''}],
     followups:[{id:uid(),date:today(),result:'full',note:'گیس بالکل ختم، قبض بھی ٹھیک'}]};
   const p2={id:uid(),name:'شازیہ بی بی',phone:'0321-0000000',age:'38',gender:'عورت',address:'ملتان',diseases:'پیشاب کی جلن',symptoms:'پیشاب میں جلن، کمر میں ہلکا درد',notes:'',created:today(),sample:true,
-    given:[{id:uid(),date:today(),medId:m3.id,medName:m3.name,qty:'1 بوتل',dose:m3.dose,days:'10',price:'400',note:''}],
+    given:[{id:uid(),date:today(),medId:m3.id,medName:m3.name,qty:'1 بوتل',dose:m3.dose,days:'10',cost:'280',price:'400',note:''}],
     followups:[{id:uid(),date:today(),result:'some',note:'جلن کم ہے، درد باقی'}]};
   return {meds:[m1,m2,m3],patients:[p1,p2]};
 }
@@ -195,6 +201,10 @@ const view=document.getElementById('view');
 function toast(t){const el=document.createElement('div');el.className='toast';el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
 function status(p){const f=[...(p.followups||[])].sort((a,b)=>a.date<b.date?1:-1)[0];return f?f.result:'pending'}
 function chip(r){return `<span class="chip c-${r}">${r==='pending'?'فالو اپ باقی':RESULTS[r]}</span>`}
+const num=v=>parseFloat(v)||0;
+const rs=n=>'Rs '+n.toLocaleString('en');
+// منافع صرف ان اندراجات کا جن کا خرید ریٹ لکھا ہو
+function money(given){let sale=0,cost=0,known=0;given.forEach(g=>{sale+=num(g.price);if(g.cost!==undefined&&g.cost!==''){cost+=num(g.cost);known+=num(g.price)}});return {sale,cost,profit:known-cost,hasCost:known>0||cost>0}}
 function sampleTag(x){return x.sample?'<span class="sample">نمونہ</span>':''}
 
 /* ---------- tabs ---------- */
@@ -233,7 +243,7 @@ function patientCard(p){
           ${p.notes?`<dt>نوٹ</dt><dd>${esc(p.notes)}</dd>`:''}
           <dt>درج تاریخ</dt><dd class="date">${fmtDate(p.created)}</dd>
         </dl>
-        <div class="sec">دی گئی دوائیں${given.length?` · کل Rs ${total.toLocaleString('en')}`:''}</div>
+        <div class="sec">دی گئی دوائیں${given.length?` · کل ${rs(total)}`:''}${money(given).hasCost?` · منافع ${rs(money(given).profit)}`:''}</div>
         ${given.length?given.map(g=>`<div class="med"><b>${esc(g.medName)}</b>${g.qty?' · '+esc(g.qty):''}${g.price?' · Rs '+esc(g.price):''}
           <div class="meta">${g.dose?'طریقہ: '+esc(g.dose):''}${g.days?' · '+esc(g.days)+' دن':''}${g.date?' · '+fmtDate(g.date):''}</div>${g.note?`<div class="meta">${esc(g.note)}</div>`:''}</div>`).join(''):'<div class="note">ابھی کوئی دوا نہیں دی گئی</div>'}
         <div class="sec">آخری رابطہ</div>
@@ -297,7 +307,7 @@ function renderPatient(){
         ${g.note?`<div class="meta">${esc(g.note)}</div>`:''}
         <div class="date">${fmtDate(g.date)}</div>
       </div><div class="actions"><button class="btn ghost sm" data-eg="${g.id}">بدلیں</button></div></div>`).join('')
-      +`<div class="note" style="margin-top:6px">کل رقم: Rs ${total.toLocaleString('en')}</div>`
+      +`<div class="note" style="margin-top:6px">کل رقم: ${rs(total)}${money(given).hasCost?` · خرید ${rs(money(given).cost)} · منافع ${rs(money(given).profit)}`:''}</div>`
       :'<div class="empty">ابھی کوئی دوا نہیں دی گئی</div>'}
   </div>
 
@@ -371,14 +381,15 @@ function givenForm(p,g){
     <label>مقدار<input name="qty" id="g-qty" placeholder="مثلاً 1 ڈبی، 30 گولی" value="${esc(v.qty)}"></label>
     <label class="full">کھانے کا طریقہ / خوراک<input name="dose" id="g-dose" value="${esc(v.dose)}"></label>
     <label>کتنے دن<input name="days" id="g-days" inputmode="numeric" value="${esc(v.days)}"></label>
-    <label>قیمت (روپے)<input name="price" id="g-price" inputmode="numeric" value="${esc(v.price)}"></label>
+    <label>فروخت ریٹ (جو مریض سے لیا)<input name="price" id="g-price" inputmode="numeric" value="${esc(v.price)}"></label>
+    <label>خرید ریٹ (جو ملا)<input name="cost" id="g-cost" inputmode="numeric" value="${esc(v.cost)}"></label>
     <label class="full">نوٹ<textarea name="note" id="g-note">${esc(v.note)}</textarea></label>
   </div>`,fd=>{
     let medName=fd.medName;
     if(fd.medId&&fd.medId!=='__other'){const m=db.meds.find(x=>x.id===fd.medId);medName=m?m.name:medName}else fd.medId='';
     if(!medName||!medName.trim()){toast('دوا چنیں یا نام لکھیں');return false}
     // نئی دوا کا نام لکھا ہو تو اسے دواؤں کی فہرست میں بھی ڈال دیں
-    if(!fd.medId){const ex=db.meds.find(m=>m.name.trim()===medName.trim());if(ex)fd.medId=ex.id;else{const m={id:uid(),name:medName.trim(),type:'',benefits:'',dose:fd.dose||'',price:fd.price||''};db.meds.push(m);fd.medId=m.id}}
+    if(!fd.medId){const ex=db.meds.find(m=>m.name.trim()===medName.trim());if(ex)fd.medId=ex.id;else{const m={id:uid(),name:medName.trim(),type:'',benefits:'',dose:fd.dose||'',cost:fd.cost||'',price:fd.price||''};db.meds.push(m);fd.medId=m.id}}
     const rec={...fd,medName};
     if(g)Object.assign(g,rec);else p.given.push({id:uid(),...rec});
     delete p.sample;save();toast('دوا درج ہو گئی');
@@ -387,7 +398,7 @@ function givenForm(p,g){
   sel.onchange=()=>{
     wrap.hidden=sel.value!=='__other';
     const m=db.meds.find(x=>x.id===sel.value);
-    if(m){document.getElementById('g-dose').value=m.dose||'';document.getElementById('g-price').value=m.price||'';document.getElementById('g-name').value=m.name}
+    if(m){document.getElementById('g-dose').value=m.dose||'';document.getElementById('g-price').value=m.price||'';document.getElementById('g-cost').value=m.cost||'';document.getElementById('g-name').value=m.name}
   };
 }
 function followForm(p,f){
@@ -408,7 +419,8 @@ function medForm(m){
   <div class="grid2">
     <label class="full">دوا کا نام *<input name="name" id="m-name" required value="${esc(v.name)}"></label>
     <label>قسم<input name="type" id="m-type" placeholder="گولی، سفوف، شربت…" value="${esc(v.type)}"></label>
-    <label>قیمت (روپے)<input name="price" id="m-price" inputmode="numeric" value="${esc(v.price)}"></label>
+    <label>خرید ریٹ (جو ملا)<input name="cost" id="m-cost" inputmode="numeric" value="${esc(v.cost)}"></label>
+    <label>فروخت ریٹ (جو بیچنا ہے)<input name="price" id="m-price" inputmode="numeric" value="${esc(v.price)}"></label>
     <label class="full">فوائد / کن بیماریوں میں<textarea name="benefits" id="m-benefits">${esc(v.benefits)}</textarea></label>
     <label class="full">خوراک / طریقہ استعمال<input name="dose" id="m-dose" value="${esc(v.dose)}"></label>
   </div>`,fd=>{
@@ -437,7 +449,12 @@ function renderMeds(){
         ${m.benefits?`<div class="meta">فوائد: ${esc(m.benefits)}</div>`:''}
         ${m.dose?`<div class="meta">خوراک: ${esc(m.dose)}</div>`:''}
       </div>
-      <div style="text-align:left">${m.price?`<div><b>Rs ${esc(m.price)}</b></div>`:''}<div class="meta">${used(m.id)} مریض</div></div>
+      <div class="rates">
+        <div><span class="meta">خرید</span> ${m.cost?esc(m.cost):'—'}</div>
+        <div><span class="meta">فروخت</span> <b>${m.price?esc(m.price):'—'}</b></div>
+        ${m.cost&&m.price?`<div class="profit">منافع ${rs(num(m.price)-num(m.cost))}</div>`:''}
+        <div class="meta">${used(m.id)} مریض</div>
+      </div>
     </div>`).join(''):`<div class="empty">${q?'کوئی دوا نہیں ملی':'ابھی کوئی دوا درج نہیں'}</div>`}
   </div>`;
   const mq=document.getElementById('mq');
@@ -460,7 +477,13 @@ function renderReport(){
   const medStats={};
   db.patients.forEach(p=>{const s=status(p);const names=new Set((p.given||[]).map(g=>g.medName));names.forEach(n=>{medStats[n]=medStats[n]||{full:0,some:0,none:0,other:0};if(s==='full'||s==='some'||s==='none')medStats[n][s]++;else medStats[n].other++})});
   const medRows=Object.entries(medStats).sort((a,b)=>(b[1].full+b[1].some)-(a[1].full+a[1].some));
+  const allGiven=db.patients.flatMap(p=>p.given||[]);const mny=money(allGiven);
   view.innerHTML=`
+  <div class="money">
+    <div>کل فروخت<b>${rs(mny.sale)}</b></div>
+    <div>کل خرید<b>${rs(mny.cost)}</b></div>
+    <div class="pf">کل منافع<b>${rs(mny.profit)}</b></div>
+  </div>
   <div class="stats">
     ${keys.map(k=>`<div class="stat c-${k}"><b>${k==='pending'?cnt.pending+cnt.noc:cnt[k]}</b>${label(k)}</div>`).join('')}
   </div>
