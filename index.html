@@ -92,6 +92,11 @@ label{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:.92re
 .money div{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center;font-size:.85rem;color:var(--muted)}
 .money b{display:block;font-size:1.15rem;color:var(--ink);font-variant-numeric:tabular-nums}
 .money .pf b{color:var(--good)}
+.period .filters{margin-bottom:8px}
+.period input,.period select{max-width:220px}
+.perhead{margin-top:8px;font-size:1rem}
+.perhead span{display:block;font-family:var(--title);color:var(--accent);font-size:1.25rem;line-height:2}
+.perhead b{font-size:1.3rem;font-variant-numeric:tabular-nums}
 .row .meta{color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}
 .chip{display:inline-block;border-radius:999px;padding:0 10px;font-size:.82rem;font-weight:700;white-space:nowrap}
 .c-full{background:var(--good-bg);color:var(--good)}
@@ -195,7 +200,7 @@ function load(){try{const r=localStorage.getItem(KEY);db=r?JSON.parse(r):seed()}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('محفوظ نہیں ہو سکا — براؤزر اسٹوریج بند ہے')}}
 load();
 
-let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all',open:new Set()};
+let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all',open:new Set(),per:'month',month:today().slice(0,7),year:today().slice(0,4)};
 const view=document.getElementById('view');
 
 function toast(t){const el=document.createElement('div');el.className='toast';el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
@@ -468,17 +473,32 @@ function renderMeds(){
 function renderReport(){
   const keys=['full','some','none','pending'];
   const cnt={full:0,some:0,none:0,noc:0,pending:0};
-  db.patients.forEach(p=>cnt[status(p)]++);
-  const tot=db.patients.length||1;
+  // مدت: سب / مہینہ / سال — اس مدت میں جن مریضوں کو دوا دی گئی
+  const MONTHS=['جنوری','فروری','مارچ','اپریل','مئی','جون','جولائی','اگست','ستمبر','اکتوبر','نومبر','دسمبر'];
+  const pre=state.per==='month'?state.month:state.per==='year'?state.year:'';
+  const inPer=d=>!pre||(d||'').startsWith(pre);
+  const pats=pre?db.patients.filter(p=>(p.given||[]).some(g=>inPer(g.date))):db.patients;
+  pats.forEach(p=>cnt[status(p)]++);
+  const tot=pats.length||1;
+  const perLabel=state.per==='month'?(MONTHS[+state.month.slice(5)-1]||'')+' '+state.month.slice(0,4):state.per==='year'?'سال '+state.year:'شروع سے اب تک';
+  const years=[...new Set([today().slice(0,4),...db.patients.flatMap(p=>(p.given||[]).map(g=>(g.date||'').slice(0,4)))].filter(Boolean))].sort().reverse();
+  // سال چنا ہو تو ہر مہینے کا حساب
+  const monthRows=state.per==='year'?MONTHS.map((n,i)=>{const mp=state.year+'-'+String(i+1).padStart(2,'0');const ps=db.patients.filter(p=>(p.given||[]).some(g=>(g.date||'').startsWith(mp)));const c={full:0,some:0,none:0,other:0};ps.forEach(p=>{const s=status(p);if(c[s]!==undefined)c[s]++;else c.other++});const m=money(db.patients.flatMap(p=>(p.given||[]).filter(g=>(g.date||'').startsWith(mp))));return {n,count:ps.length,c,m}}):[];
   const colors={full:'var(--good)',some:'var(--mid)',none:'var(--bad)',noc:'var(--idle)',pending:'var(--idle)'};
   const label=k=>k==='pending'?'فالو اپ باقی':RESULTS[k];
-  let list=db.patients.filter(p=>state.filter==='all'||status(p)===state.filter||(state.filter==='pending'&&status(p)==='noc'));
+  let list=pats.filter(p=>state.filter==='all'||status(p)===state.filter||(state.filter==='pending'&&status(p)==='noc'));
   // medicine effectiveness
   const medStats={};
-  db.patients.forEach(p=>{const s=status(p);const names=new Set((p.given||[]).map(g=>g.medName));names.forEach(n=>{medStats[n]=medStats[n]||{full:0,some:0,none:0,other:0};if(s==='full'||s==='some'||s==='none')medStats[n][s]++;else medStats[n].other++})});
+  pats.forEach(p=>{const s=status(p);const names=new Set((p.given||[]).filter(g=>inPer(g.date)).map(g=>g.medName));names.forEach(n=>{medStats[n]=medStats[n]||{full:0,some:0,none:0,other:0};if(s==='full'||s==='some'||s==='none')medStats[n][s]++;else medStats[n].other++})});
   const medRows=Object.entries(medStats).sort((a,b)=>(b[1].full+b[1].some)-(a[1].full+a[1].some));
-  const allGiven=db.patients.flatMap(p=>p.given||[]);const mny=money(allGiven);
+  const allGiven=db.patients.flatMap(p=>(p.given||[]).filter(g=>inPer(g.date)));const mny=money(allGiven);
   view.innerHTML=`
+  <div class="card period">
+    <div class="filters">${[['month','مہینہ'],['year','سال'],['all','سب']].map(([k,t])=>`<button data-per="${k}" aria-pressed="${state.per===k}">${t}</button>`).join('')}</div>
+    ${state.per==='month'?`<input type="month" id="perMonth" value="${state.month}">`:''}
+    ${state.per==='year'?`<select id="perYear">${years.map(y=>`<option ${y===state.year?'selected':''}>${y}</option>`).join('')}</select>`:''}
+    <div class="perhead"><span>${perLabel}</span><b>${pats.length}</b> مریضوں نے دوا لی · <b style="color:var(--good)">${cnt.full+cnt.some}</b> کو آرام آیا</div>
+  </div>
   <div class="money">
     <div>کل فروخت<b>${rs(mny.sale)}</b></div>
     <div>کل خرید<b>${rs(mny.cost)}</b></div>
@@ -488,7 +508,14 @@ function renderReport(){
     ${keys.map(k=>`<div class="stat c-${k}"><b>${k==='pending'?cnt.pending+cnt.noc:cnt[k]}</b>${label(k)}</div>`).join('')}
   </div>
   <div class="meter" aria-label="نتائج کا تناسب">${['full','some','none'].map(k=>`<span style="width:${cnt[k]/tot*100}%;background:${colors[k]}"></span>`).join('')}</div>
-  <p class="note">کل ${db.patients.length} مریض · ہر مریض کا آخری رابطہ گنا گیا ہے</p>
+  <p class="note">${perLabel}: ${pats.length} مریض · ہر مریض کا آخری رابطہ گنا گیا ہے</p>
+${state.per==='year'?`
+  <div class="card">
+    <h2><span>${esc(state.year)} — مہینہ وار</span></h2>
+    <div class="scroll"><table><thead><tr><th>مہینہ</th><th>مریض</th><th>مکمل آرام</th><th>کچھ آرام</th><th>آرام نہیں</th><th>باقی</th><th>فروخت</th><th>منافع</th></tr></thead><tbody>
+    ${monthRows.map(r=>`<tr${r.count?'':' style="color:var(--muted)"'}><td>${r.n}</td><td class="n"><b>${r.count}</b></td><td class="n" style="color:var(--good)">${r.c.full}</td><td class="n" style="color:var(--mid)">${r.c.some}</td><td class="n" style="color:var(--bad)">${r.c.none}</td><td class="n">${r.c.other}</td><td class="n">${r.m.sale.toLocaleString('en')}</td><td class="n" style="color:var(--good)">${r.m.profit.toLocaleString('en')}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`:''}
 
   <div class="card">
     <h2><span>مریض بلحاظ نتیجہ</span></h2>
@@ -509,6 +536,9 @@ function renderReport(){
     </tbody></table></div>`:'<div class="empty">ابھی کسی مریض کو دوا نہیں دی گئی</div>'}
   </div>`;
   view.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;renderReport()});
+  view.querySelectorAll('[data-per]').forEach(b=>b.onclick=()=>{state.per=b.dataset.per;renderReport()});
+  const pm=document.getElementById('perMonth');if(pm)pm.onchange=()=>{if(pm.value){state.month=pm.value;renderReport()}};
+  const py=document.getElementById('perYear');if(py)py.onchange=()=>{state.year=py.value;renderReport()};
   view.querySelectorAll('.row').forEach(r=>{const go=()=>{state.tab='patients';state.patientId=r.dataset.id;render()};r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go()}});
 }
 
