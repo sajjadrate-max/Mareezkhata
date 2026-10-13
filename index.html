@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16p
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:8px}
 h1{font-family:var(--title);font-size:1.7rem;margin:0;line-height:2.2;color:var(--accent)}
 .sub{color:var(--muted);font-size:.9rem;margin:0}
-nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
 nav.tabs button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.95rem}
 nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
 button,input,select,textarea{font:inherit}
@@ -64,6 +64,18 @@ label{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:.92re
 .row{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;cursor:pointer;box-shadow:var(--shadow)}
 .row .main{min-width:0}
 .row .name{font-weight:700;font-size:1.05rem}
+.pcard{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;box-shadow:var(--shadow)}
+.pcard:focus-visible{outline:3px solid var(--saffron);outline-offset:2px}
+.pcard .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:6px}
+.pcard .pname{font-family:var(--title);font-size:1.55rem;line-height:2.1;color:var(--accent);font-weight:700;overflow-wrap:anywhere}
+.pcard .head .chip{margin-top:12px}
+.pcard .pname .sample{font-family:var(--body);font-size:.75rem;font-weight:400;vertical-align:middle}
+.pcard dl.info{font-size:.95rem}
+.pcard .sec{margin-top:8px;font-weight:700;color:var(--muted);font-size:.88rem}
+.pcard .med{border-inline-start:3px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:4px 10px;margin-top:4px;font-size:.93rem;overflow-wrap:anywhere}
+.pcard .med .meta{color:var(--muted);font-size:.85rem}
+.pcard .fu{margin-top:4px;font-size:.93rem;overflow-wrap:anywhere}
+.medsBtn{width:100%;margin-bottom:12px}
 .row .meta{color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}
 .chip{display:inline-block;border-radius:999px;padding:0 10px;font-size:.82rem;font-weight:700;white-space:nowrap}
 .c-full{background:var(--good-bg);color:var(--good)}
@@ -133,7 +145,6 @@ dialog h3{font-family:var(--title);margin:0;line-height:2.1;color:var(--accent)}
 
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="patients" aria-selected="true">مریض</button>
-    <button role="tab" data-tab="meds" aria-selected="false">دوائیں</button>
     <button role="tab" data-tab="report" aria-selected="false">رپورٹ</button>
     <button role="tab" data-tab="backup" aria-selected="false">بیک اپ</button>
   </nav>
@@ -179,7 +190,7 @@ function sampleTag(x){return x.sample?'<span class="sample">نمونہ</span>':'
 /* ---------- tabs ---------- */
 document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.patientId=null;render()});
 function render(){
-  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===state.tab));
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===(state.tab==='meds'?'patients':state.tab)));
   if(state.tab==='patients') state.patientId?renderPatient():renderPatients();
   else if(state.tab==='meds') renderMeds();
   else if(state.tab==='report') renderReport();
@@ -188,6 +199,30 @@ function render(){
 }
 
 /* ---------- patients list ---------- */
+// ہر مریض کا مکمل کارڈ: سب سے اوپر بڑا نام، پھر ساری تفصیل اور دی گئی دوائیں
+function patientCard(p){
+  const given=[...(p.given||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const f=[...(p.followups||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+  const total=given.reduce((s,g)=>s+(parseFloat(g.price)||0),0);
+  return `
+    <div class="pcard" tabindex="0" data-id="${p.id}">
+      <div class="head"><div class="pname">${esc(p.name)}${sampleTag(p)}</div>${chip(status(p))}</div>
+      <dl class="info">
+        ${p.phone?`<dt>فون</dt><dd>${esc(p.phone)}</dd>`:''}
+        ${p.age||p.gender?`<dt>عمر / جنس</dt><dd>${esc(p.age)} ${p.gender?'· '+esc(p.gender):''}</dd>`:''}
+        ${p.address?`<dt>پتہ</dt><dd>${esc(p.address)}</dd>`:''}
+        <dt>بیماریاں</dt><dd>${esc(p.diseases||'—')}</dd>
+        ${p.symptoms?`<dt>علامات</dt><dd>${esc(p.symptoms)}</dd>`:''}
+        ${p.notes?`<dt>نوٹ</dt><dd>${esc(p.notes)}</dd>`:''}
+        <dt>درج تاریخ</dt><dd class="date">${fmtDate(p.created)}</dd>
+      </dl>
+      <div class="sec">دی گئی دوائیں${given.length?` · کل Rs ${total.toLocaleString('en')}`:''}</div>
+      ${given.length?given.map(g=>`<div class="med"><b>${esc(g.medName)}</b>${g.qty?' · '+esc(g.qty):''}${g.price?' · Rs '+esc(g.price):''}
+        <div class="meta">${g.dose?'طریقہ: '+esc(g.dose):''}${g.days?' · '+esc(g.days)+' دن':''}${g.date?' · '+fmtDate(g.date):''}</div>${g.note?`<div class="meta">${esc(g.note)}</div>`:''}</div>`).join(''):'<div class="note">ابھی کوئی دوا نہیں دی گئی</div>'}
+      <div class="sec">آخری رابطہ</div>
+      ${f?`<div class="fu">${chip(f.result)} <span class="date">${fmtDate(f.date)}</span>${f.note?`<div>${esc(f.note)}</div>`:''}</div>`:'<div class="note">ابھی رابطہ درج نہیں</div>'}
+    </div>`;
+}
 function renderPatients(){
   const q=state.q.trim();
   let list=[...db.patients].sort((a,b)=>(b.created||'').localeCompare(a.created||''));
@@ -197,20 +232,14 @@ function renderPatients(){
     <input type="search" id="pq" placeholder="نام، فون یا بیماری سے تلاش کریں" value="${esc(state.q)}">
     <button class="btn" id="addP">+ نیا مریض</button>
   </div>
-  <div class="list">${list.length?list.map(p=>`
-    <div class="row" tabindex="0" data-id="${p.id}">
-      <div class="main">
-        <div class="name">${esc(p.name)}${sampleTag(p)}</div>
-        <div class="meta">${esc(p.diseases||'بیماری درج نہیں')}${p.phone?' · '+esc(p.phone):''}</div>
-        <div class="meta">${(p.given||[]).length} بار دوا دی · ${(p.followups||[]).length} رابطے</div>
-      </div>
-      ${chip(status(p))}
-    </div>`).join(''):`<div class="empty">${q?'کوئی مریض نہیں ملا':'ابھی کوئی مریض درج نہیں — "نیا مریض" دبائیں'}</div>`}
+  <button class="btn ghost medsBtn" id="goMeds">💊 دواؤں کی فہرست (${db.meds.length})</button>
+  <div class="list">${list.length?list.map(patientCard).join(''):`<div class="empty">${q?'کوئی مریض نہیں ملا':'ابھی کوئی مریض درج نہیں — "نیا مریض" دبائیں'}</div>`}
   </div>`;
   const pq=document.getElementById('pq');
   pq.oninput=()=>{state.q=pq.value;const pos=pq.selectionStart;renderPatients();const n=document.getElementById('pq');n.focus();n.setSelectionRange(pos,pos)};
   document.getElementById('addP').onclick=()=>patientForm();
-  view.querySelectorAll('.row').forEach(r=>{const go=()=>{state.patientId=r.dataset.id;render()};r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go()}});
+  document.getElementById('goMeds').onclick=()=>{state.tab='meds';render()};
+  view.querySelectorAll('.pcard').forEach(r=>{const go=()=>{state.patientId=r.dataset.id;render()};r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go()}});
 }
 
 /* ---------- patient detail ---------- */
@@ -328,6 +357,8 @@ function givenForm(p,g){
     let medName=fd.medName;
     if(fd.medId&&fd.medId!=='__other'){const m=db.meds.find(x=>x.id===fd.medId);medName=m?m.name:medName}else fd.medId='';
     if(!medName||!medName.trim()){toast('دوا چنیں یا نام لکھیں');return false}
+    // نئی دوا کا نام لکھا ہو تو اسے دواؤں کی فہرست میں بھی ڈال دیں
+    if(!fd.medId){const ex=db.meds.find(m=>m.name.trim()===medName.trim());if(ex)fd.medId=ex.id;else{const m={id:uid(),name:medName.trim(),type:'',benefits:'',dose:fd.dose||'',price:fd.price||''};db.meds.push(m);fd.medId=m.id}}
     const rec={...fd,medName};
     if(g)Object.assign(g,rec);else p.given.push({id:uid(),...rec});
     delete p.sample;save();toast('دوا درج ہو گئی');
@@ -374,6 +405,7 @@ function renderMeds(){
   if(q)list=list.filter(m=>[m.name,m.benefits,m.type].join(' ').includes(q));
   const used=id=>db.patients.filter(p=>(p.given||[]).some(g=>g.medId===id)).length;
   view.innerHTML=`
+  <button class="btn ghost sm back" id="backM">→ تمام مریض</button>
   <div class="bar">
     <input type="search" id="mq" placeholder="دوا یا بیماری سے تلاش کریں" value="${esc(state.mq)}">
     <button class="btn" id="addM">+ نئی دوا</button>
@@ -390,6 +422,7 @@ function renderMeds(){
   </div>`;
   const mq=document.getElementById('mq');
   mq.oninput=()=>{state.mq=mq.value;const pos=mq.selectionStart;renderMeds();const n=document.getElementById('mq');n.focus();n.setSelectionRange(pos,pos)};
+  document.getElementById('backM').onclick=()=>{state.tab='patients';render()};
   document.getElementById('addM').onclick=()=>medForm();
   view.querySelectorAll('.row').forEach(r=>{const go=()=>medForm(db.meds.find(m=>m.id===r.dataset.id));r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go()}});
 }
