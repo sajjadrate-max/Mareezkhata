@@ -221,7 +221,7 @@ const AKEY='mareez_khata_autofile';
 const autoFile=()=>{try{return JSON.parse(localStorage.getItem(AKEY))||{}}catch(e){return {}}};
 const setAutoFile=v=>{try{localStorage.setItem(AKEY,JSON.stringify(v))}catch(e){}};
 document.addEventListener('pointerdown',function daily(){
-  const a=autoFile();if(!a.on||a.last===today())return;
+  const a=autoFile();if(a.on===false||a.last===today())return;
   if(!db.patients.some(p=>!p.sample))return;
   try{downloadBackup();setAutoFile({...a,last:today()});toast('آج کی بیک اپ فائل Downloads میں محفوظ ہو گئی')}catch(e){}
 },true);
@@ -576,21 +576,6 @@ function renderBackup(){
   const hasSample=db.meds.some(m=>m.sample)||db.patients.some(p=>p.sample);
   view.innerHTML=`
   <div class="card">
-    <h2><span>ڈیٹا کہاں محفوظ ہے</span></h2>
-    <p>سارا کھاتہ اسی فون میں محفوظ رہتا ہے۔ ہر تبدیلی کے چند سیکنڈ بعد ایپ خودبخود اس کی دوسری کاپی بھی رکھ لیتی ہے۔ فون بدلنے یا براؤزر کا سارا ڈیٹا صاف کرنے سے بچاؤ کے لیے نیچے "روزانہ بیک اپ فائل" چالو رکھیں۔</p>
-  </div>
-  <div class="card">
-    <h2><span>خودکار بیک اپ ✅</span></h2>
-    <p class="note" id="autoInfo">دیکھ رہے ہیں…</p>
-    <div id="snapList"></div>
-    <p class="note">ہر دن کی ایک کاپی ${KEEP_DAYS} دن تک رکھی جاتی ہے۔ غلطی سے کچھ حذف ہو جائے تو پچھلے دن کی کاپی واپس لا سکتے ہیں۔</p>
-  </div>
-  <div class="card">
-    <h2><span>روزانہ بیک اپ فائل</span></h2>
-    <label class="switch"><input type="checkbox" id="afOn" ${autoFile().on?'checked':''}> ہر دن ایپ پہلی بار استعمال کرنے پر بیک اپ فائل خود فون کے Downloads میں محفوظ ہو</label>
-    <p class="note">${autoFile().last?'آخری فائل: '+fmtDate(autoFile().last)+' · ':''}یہ فائل براؤزر صاف کرنے پر بھی رہتی ہے۔ فون میں Google Drive / Files کا بیک اپ چالو ہو تو یہ کلاؤڈ میں بھی چلی جاتی ہے۔</p>
-  </div>
-  <div class="card">
     <h2><span>بیک اپ لیں</span></h2>
     <div class="actions">
       <button class="btn" id="dl">بیک اپ فائل ڈاؤن لوڈ کریں</button>
@@ -612,17 +597,6 @@ function renderBackup(){
   document.getElementById('dl').onclick=()=>{try{downloadBackup();toast('بیک اپ فائل بن گئی')}catch(e){toast('ڈاؤن لوڈ نہیں ہوا — کاپی والا طریقہ استعمال کریں')}};
   document.getElementById('sh').onclick=async()=>{const f=new File([backupBlob()],'mareez-khata-'+today()+'.json',{type:'application/json'});
     if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:'مریضوں کا کھاتہ — بیک اپ'})}catch(e){}}else{downloadBackup();toast('یہ فون شیئر نہیں کرتا — فائل ڈاؤن لوڈ ہو گئی')}};
-  document.getElementById('afOn').onchange=e=>{setAutoFile({...autoFile(),on:e.target.checked});toast(e.target.checked?'روزانہ بیک اپ فائل چالو':'روزانہ بیک اپ فائل بند')};
-  (async()=>{try{
-    const latest=await idbDo('readonly',st=>st.get('latest'));
-    const keys=(await idbDo('readonly',st=>st.getAllKeys())).filter(k=>String(k).startsWith('day-')).sort().reverse();
-    const recs=await Promise.all(keys.map(k=>idbDo('readonly',st=>st.get(k))));
-    const info=document.getElementById('autoInfo'),list=document.getElementById('snapList');if(!info)return;
-    info.textContent=latest?'آخری خودکار محفوظ: '+new Date(latest.ts).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):'ابھی کوئی خودکار بیک اپ نہیں';
-    list.innerHTML=keys.map((k,i)=>`<div class="entry"><div class="main"><b class="date">${fmtDate(k.slice(4))}</b> · ${recs[i]?.n??0} مریض</div><button class="btn ghost sm" data-snap="${k}">واپس لائیں</button></div>`).join('');
-    list.querySelectorAll('[data-snap]').forEach(b=>b.onclick=async()=>{const r=await idbDo('readonly',st=>st.get(b.dataset.snap));if(r)restore(r.data)});
-  }catch(e){const info=document.getElementById('autoInfo');if(info)info.textContent='یہ براؤزر خودکار بیک اپ نہیں کر سکتا — فائل والا بیک اپ لیں'}})();
-  document.getElementById('cp').onclick=()=>{const t=document.getElementById('bk');t.value=json();t.hidden=false;navigator.clipboard?.writeText(t.value).then(()=>toast('بیک اپ کاپی ہو گیا'),()=>{t.select();toast('متن منتخب ہے — خود کاپی کریں')})||(t.select())};
   const restore=txt=>{try{const d=JSON.parse(txt);if(!Array.isArray(d.patients)||!Array.isArray(d.meds))throw 0;confirmBox('موجودہ سارا ڈیٹا بیک اپ سے بدل جائے گا۔',()=>{db=d;save();toast('بیک اپ واپس آ گیا');state.tab='patients';render()})}catch(e){toast('یہ درست بیک اپ نہیں ہے')}};
   document.getElementById('restore').onclick=()=>{const f=document.getElementById('fi').files[0];const t=document.getElementById('pastebk').value.trim();if(f){const r=new FileReader();r.onload=()=>restore(r.result);r.readAsText(f)}else if(t)restore(t);else toast('پہلے فائل چنیں یا متن پیسٹ کریں')};
   const c=document.getElementById('clrS');if(c)c.onclick=()=>confirmBox('تمام نمونہ مریض اور نمونہ دوائیں حذف ہو جائیں گی۔ آپ کا اپنا ریکارڈ رہے گا۔',()=>{db.meds=db.meds.filter(m=>!m.sample);db.patients=db.patients.filter(p=>!p.sample);save();render();toast('نمونہ ریکارڈ ہٹ گیا')});
