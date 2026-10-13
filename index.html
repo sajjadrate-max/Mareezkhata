@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16p
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:8px}
 h1{font-family:var(--title);font-size:1.7rem;margin:0;line-height:2.2;color:var(--accent)}
 .sub{color:var(--muted);font-size:.9rem;margin:0}
-nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
 nav.tabs button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.95rem}
 nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
 button,input,select,textarea{font:inherit}
@@ -86,6 +86,10 @@ label{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:.92re
 .pcard .med .meta{color:var(--muted);font-size:.85rem}
 .pcard .fu{margin-top:4px;font-size:.93rem;overflow-wrap:anywhere}
 .medsBtn{width:100%;margin-bottom:12px}
+.pcard .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard[open] .clamp{display:none}
+ul.ing{margin:4px 0;padding-inline-start:20px}
+ul.ing li{padding-block:1px;border-bottom:1px dashed var(--line)}
 label.switch{flex-direction:row;align-items:flex-start;gap:8px;color:var(--ink);font-weight:600}
 label.switch input{width:auto;margin-top:6px;transform:scale(1.3)}
 .rates{text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:.92rem;line-height:1.6}
@@ -168,6 +172,7 @@ dialog h3{font-family:var(--title);margin:0;line-height:2.1;color:var(--accent)}
 
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="patients" aria-selected="true">مریض</button>
+    <button role="tab" data-tab="formulas" aria-selected="false">نسخے</button>
     <button role="tab" data-tab="report" aria-selected="false">رپورٹ</button>
   </nav>
 
@@ -228,7 +233,7 @@ load();
 // اگر براؤزر کا ریکارڈ مٹ گیا ہو مگر خودکار بیک اپ موجود ہو تو خود واپس لے آئیں
 if(fresh)idbDo('readonly',st=>st.get('latest')).then(r=>{if(r&&r.data){const d=JSON.parse(r.data);if(Array.isArray(d.patients)&&d.patients.length){db=d;db.meds=db.meds||[];save();render();toast('پچھلا ریکارڈ خودکار بیک اپ سے واپس آ گیا')}}else autoSnap()}).catch(()=>{});else autoSnap();
 
-let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all',open:new Set(),per:'month',month:today().slice(0,7),year:today().slice(0,4)};
+let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all',open:new Set(),fq:'',fm:'all',per:'month',month:today().slice(0,7),year:today().slice(0,4)};
 const view=document.getElementById('view');
 
 function toast(t){const el=document.createElement('div');el.className='toast';el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
@@ -243,10 +248,12 @@ function sampleTag(x){return x.sample?'<span class="sample">نمونہ</span>':'
 /* ---------- tabs ---------- */
 document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.patientId=null;render()});
 function render(){
+  if(ensureFormulas())save();
   document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===(state.tab==='meds'?'patients':state.tab==='backup'?'report':state.tab)));
   if(state.tab==='patients') state.patientId?renderPatient():renderPatients();
   else if(state.tab==='meds') renderMeds();
   else if(state.tab==='report') renderReport();
+  else if(state.tab==='formulas') renderFormulas();
   else renderBackup();
   window.scrollTo(0,0);
 }
@@ -495,6 +502,75 @@ function renderMeds(){
   document.getElementById('backM').onclick=()=>{state.tab='patients';render()};
   document.getElementById('addM').onclick=()=>medForm();
   view.querySelectorAll('.row').forEach(r=>{const go=()=>medForm(db.meds.find(m=>m.id===r.dataset.id));r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go()}});
+}
+
+
+/* ---------- نسخے (مزاج کے نمبر کے حساب سے) ---------- */
+const MIZAJ={1:'اعصابی عضلاتی',2:'عضلاتی اعصابی',3:'عضلاتی غدی',4:'غدی عضلاتی',5:'غدی اعصابی',6:'اعصابی غدی'};
+const FORMULA_SEED=[{"name": "2 ملین", "mizaj": "2", "ingredients": "کرنجوہ 1 تولہ\nآملہ 1 تولہ\nپھٹکری بریاں 2 تولہ\nہلیلہ سیاہ بریاں 4 تولہ\nکشتہ سمبل فار 1 تولہ", "benefits": "اعصابی امراض، بلغمی کھانسی، لیکوریا، جریان، سپرمز کی کمی، نزلہ، اعصابی دردیں، متلی، قے، اسہال، دست، موشن، بہنے والا دماغی شوگر", "prep": "", "dose": "", "notes": "عضلاتی اعصابی ملین کے ساتھ عضلاتی غدی اور غدی عضلاتی تک دوائی ملا سکتے ہیں۔\nاگر معدہ خراب ہو تو 2 ملین، تریاق تبخیر، جوارش جالینوس ملا کر دو تین ہفتے میں معدہ ٹھیک ہو جاتا ہے۔", "price": "", "id": "f2-1"}, {"name": "حب ہاتھی دانت", "mizaj": "2", "ingredients": "برادہ ہاتھی دانت اصلی والا 1 تولہ\nپھٹکری سفید 1 تولہ\nتخم کونچ مدبر 2 تولہ\nکائپھل 1 تولہ", "benefits": "زنانہ بانجھ پن، حمل کیلئے 95٪ رزلٹ ملا ہے۔ اس فارمولے سے عورتوں کی کافی بیماریاں ختم ہو جاتی ہیں۔ یہ vaginal system کو بالکل ٹائٹ کر دے گا۔\nاگر مرد کے جراثیم کم ہوں جیسے 35٪ ہوں اور عورت کو یہ کیپسول دے دو تو بھی حمل ہو سکتا ہے۔", "prep": "ہاتھی دانت کو چوٹ سے توڑنا اور پھر گرینڈ کر لیں۔", "dose": "500 ملی گرام سے ایک گرام کیپسول دن میں تین بار پانی کے ساتھ۔\nمینسز ختم ہوتے ہی استعمال کرا سکتے ہیں۔ دوائی 6 دن استعمال کروانے کے بعد ہمبستری کریں گے۔\nجس عورت کو حمل نہیں ہوتا صرف 6 دن استعمال کریں تو 7 دن حمل ہو جاتا ہے ان شاءاللہ۔", "notes": "طریقہ وہی ہے: پہلے مغلظ کورس، لیکوریا ٹھیک کریں، مینسز ٹھیک کریں، جنسی قوت ٹھیک کریں۔\nجب بندہ مایوس ہو جاتا ہے تو اس وقت یہ فارمولا کام کرتا ہے۔\nسب سے پہلے یہ دیکھنا ہے کہ کیا نقص ہے، کیا وجہ ہے: انڈے نہیں بن رہے، یوٹرس ڈیمج ہو، رسولی، پانی والی، پس سیل، انفیکشن، لیکوریا، ٹیوب بند، ہارمون — یہ سب مسئلے بھی ہو سکتے ہیں۔ جو پرانی عورت ہو، علاج کروا کروا کے تھک گئی ہو، تو ان سب کا علاج کرنے کے بعد بھی مسائل ہوں تو یہ فارمولا استعمال کروائیں گے۔\nجس عورت کو لیکوریا ہو اور آپ یہ فارمولا دیں تو حمل تو ہو جائے گا، لیکوریا ٹھیک ہو یا نہ ہو، لیکن بہترین طریقہ یہ ہے کہ وجہ ختم کریں۔", "price": "", "id": "f2-2"}, {"name": "2 مغلظ", "mizaj": "2", "ingredients": "تج 50 گرام\nتالمکھانہ 50 گرام\nبیج بند 50 گرام\nسمندر سوکھ 50 گرام\nتخم سریالہ 50 گرام\nتخم بھنگ 50 گرام\nکشتہ جست یا کشتہ سہ دھاتہ 15 گرام", "benefits": "کمزوری قوت باہ کو طاقت دیتا ہے، جراثیم منی کی پیدائش بڑھاتا اور گاڑھا کرتا ہے۔", "prep": "", "dose": "", "notes": "2 ملین یا بیضہ مرغ کے ساتھ ملا کر دیں تو جریان، لیکوریا کو بہت جلدی ختم کرتا ہے۔\nاحتلام، سرعت: 2 مغلظ کے ساتھ 2 ملین، تریاق تبخیر کے ساتھ ملا کر دینے سے پورے فوائد ملتے ہیں۔", "price": "", "id": "f2-3"}, {"name": "کشتہ بیضہ مرغ", "mizaj": "2", "ingredients": "کشتہ پوست بیضہ مرغ (انڈے کا چھلکا) 2 تولہ\nکشتہ سہ دھاتہ 6 ماشہ\nکشتہ صدف 3 ماشہ\nمرجان 3 ماشہ\nکشتہ فولاد 2 ماشہ", "benefits": "کیلشیم کا بہترین مرکب ہے۔ سرعت انزال، احتلام، خون بند، جریان، لیکوریا میں دوسری دوائی کے ساتھ ملا کر دیا جاتا ہے۔ رحم کی سوزش، ورم رحم، رحم میں پانی کی تھیلیاں، حاملہ خواتین میں کیلشیم کی کمی، الرجی اور چھپاکی میں بے حد مفید ہے۔", "prep": "", "dose": "", "notes": "", "price": "", "id": "f2-4"}];
+function ensureFormulas(){if(Array.isArray(db.formulas))return false;db.formulas=FORMULA_SEED.map(f=>({...f}));return true}
+const mzLabel=m=>MIZAJ[m]?`${m} نمبر · ${MIZAJ[m]}`:'مزاج درج نہیں';
+function formulaCard(f){
+  const ing=(f.ingredients||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  const sec=(t,v)=>v&&v.trim()?`<div class="sec">${t}</div><div class="fu" style="white-space:pre-wrap">${esc(v)}</div>`:'';
+  return `
+    <details class="pcard" data-id="${f.id}" ${state.open.has(f.id)?'open':''}>
+      <summary>
+        <div class="head"><div class="pname">${esc(f.name)}</div><span class="chip c-full">${mzLabel(f.mizaj)}</span></div>
+        <div class="line"><span class="lbl">ایک گولی کی قیمت:</span> ${f.price?'<b>Rs '+esc(f.price)+'</b>':'درج نہیں'}</div>
+        ${f.benefits?`<div class="line clamp"><span class="lbl">فوائد:</span> ${esc(f.benefits)}</div>`:''}
+        <div class="tri" aria-hidden="true"><span>▼</span></div>
+        <span class="sr">مکمل نسخہ</span>
+      </summary>
+      <div class="more">
+        <div class="sec">اجزا</div>
+        ${ing.length?`<ul class="ing">${ing.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<div class="note">اجزا درج نہیں</div>'}
+        ${sec('فوائد',f.benefits)}${sec('تیاری',f.prep)}${sec('خوراک / طریقہ',f.dose)}${sec('نوٹ',f.notes)}
+        <div class="sec">ایک گولی کی قیمت (روپے)</div>
+        <div class="bar" style="margin:4px 0 0"><input inputmode="numeric" data-price="${f.id}" value="${esc(f.price)}" placeholder="مثلاً 10" style="flex:1;min-width:0"><button class="btn sm" data-psave="${f.id}">محفوظ</button></div>
+        <div class="actions" style="margin-top:10px"><button class="btn ghost sm" data-fedit="${f.id}">نسخہ بدلیں</button></div>
+      </div>
+    </details>`;
+}
+function renderFormulas(){
+  const q=state.fq.trim();
+  let list=[...db.formulas].sort((a,b)=>(a.mizaj||'9').localeCompare(b.mizaj||'9')||a.name.localeCompare(b.name,'ur'));
+  if(state.fm!=='all')list=list.filter(f=>f.mizaj===state.fm);
+  if(q)list=list.filter(f=>[f.name,f.ingredients,f.benefits,f.notes].join(' ').includes(q));
+  const cnt=m=>db.formulas.filter(f=>f.mizaj===m).length;
+  view.innerHTML=`
+  <div class="bar">
+    <input type="search" id="fq" placeholder="نسخہ، جز یا بیماری سے تلاش کریں" value="${esc(state.fq)}">
+    <button class="btn" id="addF2">+ نیا نسخہ</button>
+  </div>
+  <div class="filters">${['all','1','2','3','4','5','6'].map(k=>`<button data-fm="${k}" aria-pressed="${state.fm===k}">${k==='all'?'سب':k+' نمبر'}${k!=='all'&&cnt(k)?' ('+cnt(k)+')':''}</button>`).join('')}</div>
+  ${state.fm!=='all'?`<p class="note">${mzLabel(state.fm)}</p>`:''}
+  <div class="list">${list.length?list.map(formulaCard).join(''):`<div class="empty">${q?'کوئی نسخہ نہیں ملا':'اس نمبر میں ابھی کوئی نسخہ نہیں'}</div>`}</div>`;
+  const fq=document.getElementById('fq');
+  fq.oninput=()=>{state.fq=fq.value;const pos=fq.selectionStart;renderFormulas();const n=document.getElementById('fq');n.focus();n.setSelectionRange(pos,pos)};
+  document.getElementById('addF2').onclick=()=>formulaForm();
+  view.querySelectorAll('[data-fm]').forEach(b=>b.onclick=()=>{state.fm=b.dataset.fm;renderFormulas()});
+  view.querySelectorAll('.pcard').forEach(d=>d.ontoggle=()=>{d.open?state.open.add(d.dataset.id):state.open.delete(d.dataset.id)});
+  view.querySelectorAll('[data-psave]').forEach(b=>b.onclick=()=>{const f=db.formulas.find(x=>x.id===b.dataset.psave);const inp=view.querySelector(`[data-price="${f.id}"]`);f.price=inp.value.trim();save();toast('قیمت محفوظ ہو گئی');renderFormulas()});
+  view.querySelectorAll('[data-fedit]').forEach(b=>b.onclick=()=>formulaForm(db.formulas.find(x=>x.id===b.dataset.fedit)));
+}
+function formulaForm(f){
+  const v=f||{mizaj:state.fm!=='all'?state.fm:'2'};
+  openDlg(`<h3>${f?'نسخہ بدلیں':'نیا نسخہ'}</h3>
+  <div class="grid2">
+    <label class="full">نسخے کا نام *<input name="name" id="x-name" required value="${esc(v.name)}"></label>
+    <label>مزاج نمبر<select name="mizaj" id="x-mizaj">${Object.entries(MIZAJ).map(([k,t])=>`<option value="${k}" ${v.mizaj===k?'selected':''}>${k} نمبر — ${t}</option>`).join('')}</select></label>
+    <label>ایک گولی کی قیمت (روپے)<input name="price" id="x-price" inputmode="numeric" value="${esc(v.price)}"></label>
+    <label class="full">اجزا (ہر جز الگ لائن میں)<textarea name="ingredients" id="x-ing" style="min-height:120px" placeholder="کرنجوہ 1 تولہ">${esc(v.ingredients)}</textarea></label>
+    <label class="full">فوائد / کن بیماریوں میں<textarea name="benefits" id="x-ben">${esc(v.benefits)}</textarea></label>
+    <label class="full">تیاری<textarea name="prep" id="x-prep">${esc(v.prep)}</textarea></label>
+    <label class="full">خوراک / طریقہ<textarea name="dose" id="x-dose">${esc(v.dose)}</textarea></label>
+    <label class="full">نوٹ<textarea name="notes" id="x-notes">${esc(v.notes)}</textarea></label>
+  </div>`,fd=>{
+    if(!fd.name.trim()){toast('نسخے کا نام لکھیں');return false}
+    if(f)Object.assign(f,fd);else{const n={id:uid(),...fd};db.formulas.push(n);state.open.add(n.id)}
+    save();toast('نسخہ محفوظ ہو گیا');
+  },f?()=>confirmBox(`"${f.name}" کا نسخہ حذف ہو جائے گا۔`,()=>{db.formulas=db.formulas.filter(x=>x.id!==f.id);save();render()}):null);
 }
 
 /* ---------- report ---------- */
