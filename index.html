@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16p
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:8px}
 h1{font-family:var(--title);font-size:1.7rem;margin:0;line-height:2.2;color:var(--accent)}
 .sub{color:var(--muted);font-size:.9rem;margin:0}
-nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
 nav.tabs button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.95rem}
 nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
 button,input,select,textarea{font:inherit}
@@ -169,7 +169,6 @@ dialog h3{font-family:var(--title);margin:0;line-height:2.1;color:var(--accent)}
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="patients" aria-selected="true">مریض</button>
     <button role="tab" data-tab="report" aria-selected="false">رپورٹ</button>
-    <button role="tab" data-tab="backup" aria-selected="false">بیک اپ</button>
   </nav>
 
   <main id="view"></main>
@@ -244,7 +243,7 @@ function sampleTag(x){return x.sample?'<span class="sample">نمونہ</span>':'
 /* ---------- tabs ---------- */
 document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.patientId=null;render()});
 function render(){
-  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===(state.tab==='meds'?'patients':state.tab)));
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===(state.tab==='meds'?'patients':state.tab==='backup'?'report':state.tab)));
   if(state.tab==='patients') state.patientId?renderPatient():renderPatients();
   else if(state.tab==='meds') renderMeds();
   else if(state.tab==='report') renderReport();
@@ -563,8 +562,10 @@ ${state.per==='year'?`
     ${medRows.length?`<div class="scroll"><table><thead><tr><th>دوا</th><th>مکمل آرام</th><th>کچھ آرام</th><th>آرام نہیں</th><th>باقی</th></tr></thead><tbody>
     ${medRows.map(([n,s])=>`<tr><td>${esc(n)}</td><td class="n" style="color:var(--good)">${s.full}</td><td class="n" style="color:var(--mid)">${s.some}</td><td class="n" style="color:var(--bad)">${s.none}</td><td class="n">${s.other}</td></tr>`).join('')}
     </tbody></table></div>`:'<div class="empty">ابھی کسی مریض کو دوا نہیں دی گئی</div>'}
-  </div>`;
+  </div>
+  <p class="note" style="text-align:center;margin-top:18px"><button class="btn ghost sm" id="goBk">بیک اپ فائل لیں / واپس لائیں</button></p>`;
   view.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;renderReport()});
+  document.getElementById('goBk').onclick=()=>{state.tab='backup';render()};
   view.querySelectorAll('[data-per]').forEach(b=>b.onclick=()=>{state.per=b.dataset.per;renderReport()});
   const pm=document.getElementById('perMonth');if(pm)pm.onchange=()=>{if(pm.value){state.month=pm.value;renderReport()}};
   const py=document.getElementById('perYear');if(py)py.onchange=()=>{state.year=py.value;renderReport()};
@@ -575,6 +576,7 @@ ${state.per==='year'?`
 function renderBackup(){
   const hasSample=db.meds.some(m=>m.sample)||db.patients.some(p=>p.sample);
   view.innerHTML=`
+  <button class="btn ghost sm back" id="backR">→ رپورٹ</button>
   <div class="card">
     <h2><span>بیک اپ لیں</span></h2>
     <div class="actions">
@@ -593,6 +595,7 @@ function renderBackup(){
     <p class="note">موجودہ ڈیٹا کی جگہ بیک اپ والا ڈیٹا آ جائے گا۔</p>
   </div>
   ${hasSample?`<div class="card"><h2><span>نمونہ ریکارڈ</span></h2><p>شروع میں سمجھانے کے لیے کچھ نمونہ مریض اور دوائیں ڈالی گئی ہیں۔</p><button class="btn danger" id="clrS">نمونہ ریکارڈ ہٹائیں</button></div>`:''}`;
+  document.getElementById('backR').onclick=()=>{state.tab='report';render()};
   const json=()=>JSON.stringify(db);
   document.getElementById('dl').onclick=()=>{try{downloadBackup();toast('بیک اپ فائل بن گئی')}catch(e){toast('ڈاؤن لوڈ نہیں ہوا — کاپی والا طریقہ استعمال کریں')}};
   document.getElementById('sh').onclick=async()=>{const f=new File([backupBlob()],'mareez-khata-'+today()+'.json',{type:'application/json'});
