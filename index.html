@@ -550,13 +550,12 @@ function renderFormulas(){
   let list=[...db.formulas].sort((a,b)=>(a.mizaj||'9').localeCompare(b.mizaj||'9')||a.name.localeCompare(b.name,'ur'));
   if(state.fm!=='all')list=list.filter(f=>f.mizaj===state.fm);
   if(q)list=list.filter(f=>[f.name,f.ingredients,f.benefits,f.notes].join(' ').includes(q));
-  const cnt=m=>db.formulas.filter(f=>f.mizaj===m).length;
   view.innerHTML=`
   <div class="bar">
     <input type="search" id="fq" placeholder="نسخہ، جز یا بیماری سے تلاش کریں" value="${esc(state.fq)}">
     <button class="btn" id="addF2">+ نیا نسخہ</button>
   </div>
-  <div class="filters">${['all','1','2','3','4','5','6'].map(k=>`<button data-fm="${k}" aria-pressed="${state.fm===k}">${k==='all'?'سب':k+' نمبر'}${k!=='all'&&cnt(k)?' ('+cnt(k)+')':''}</button>`).join('')}</div>
+  <div class="filters">${['all','1','2','3','4','5','6'].map(k=>`<button data-fm="${k}" aria-pressed="${state.fm===k}">${k==='all'?'سب':k+' نمبر'}</button>`).join('')}</div>
   ${state.fm!=='all'?`<p class="note">${mzLabel(state.fm)}</p>`:''}
   <div class="list">${list.length?list.map(formulaCard).join(''):`<div class="empty">${q?'کوئی نسخہ نہیں ملا':'اس نمبر میں ابھی کوئی نسخہ نہیں'}</div>`}</div>`;
   const fq=document.getElementById('fq');
