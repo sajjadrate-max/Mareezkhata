@@ -86,6 +86,8 @@ label{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:.92re
 .pcard .med .meta{color:var(--muted);font-size:.85rem}
 .pcard .fu{margin-top:4px;font-size:.93rem;overflow-wrap:anywhere}
 .medsBtn{width:100%;margin-bottom:12px}
+label.switch{flex-direction:row;align-items:flex-start;gap:8px;color:var(--ink);font-weight:600}
+label.switch input{width:auto;margin-top:6px;transform:scale(1.3)}
 .rates{text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:.92rem;line-height:1.6}
 .profit{color:var(--good);font-weight:700;font-size:.85rem}
 .money{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
@@ -196,9 +198,36 @@ function seed(){
   return {meds:[m1,m2,m3],patients:[p1,p2]};
 }
 let db;
-function load(){try{const r=localStorage.getItem(KEY);db=r?JSON.parse(r):seed()}catch(e){db=seed()}db.meds=db.meds||[];db.patients=db.patients||[]}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('محفوظ نہیں ہو سکا — براؤزر اسٹوریج بند ہے')}}
+let fresh=false;
+function load(){try{const r=localStorage.getItem(KEY);fresh=!r;db=r?JSON.parse(r):seed()}catch(e){fresh=true;db=seed()}db.meds=db.meds||[];db.patients=db.patients||[]}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('محفوظ نہیں ہو سکا — براؤزر اسٹوریج بند ہے')}autoSnap()}
+
+/* ---------- خودکار بیک اپ: ہر تبدیلی ایپ کے اندر دوسری جگہ (IndexedDB) بھی محفوظ، اور ہر دن کی کاپی ---------- */
+let idbP=null;
+function idb(){return idbP||(idbP=new Promise((ok,no)=>{const r=indexedDB.open('mareez_khata',1);r.onupgradeneeded=()=>r.result.createObjectStore('snaps');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}))}
+async function idbDo(mode,fn){const d=await idb();return new Promise((ok,no)=>{const t=d.transaction('snaps',mode);const r=fn(t.objectStore('snaps'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})}
+const KEEP_DAYS=30;
+let snapTimer;
+function autoSnap(){clearTimeout(snapTimer);snapTimer=setTimeout(async()=>{try{
+  const rec={ts:new Date().toISOString(),data:JSON.stringify(db),n:db.patients.length};
+  await idbDo('readwrite',st=>{st.put(rec,'latest');st.put(rec,'day-'+today())});
+  const days=(await idbDo('readonly',st=>st.getAllKeys())).filter(k=>String(k).startsWith('day-')).sort();
+  if(days.length>KEEP_DAYS)await idbDo('readwrite',st=>days.slice(0,days.length-KEEP_DAYS).forEach(k=>st.delete(k)));
+}catch(e){}},1200)}
+function backupBlob(){return new Blob([JSON.stringify(db)],{type:'application/json'})}
+function downloadBackup(){const a=document.createElement('a');a.href=URL.createObjectURL(backupBlob());a.download='mareez-khata-'+today()+'.json';document.body.appendChild(a);a.click();a.remove()}
+// روزانہ بیک اپ فائل (اختیاری): دن میں پہلی بار ایپ چھونے پر Downloads میں فائل
+const AKEY='mareez_khata_autofile';
+const autoFile=()=>{try{return JSON.parse(localStorage.getItem(AKEY))||{}}catch(e){return {}}};
+const setAutoFile=v=>{try{localStorage.setItem(AKEY,JSON.stringify(v))}catch(e){}};
+document.addEventListener('pointerdown',function daily(){
+  const a=autoFile();if(!a.on||a.last===today())return;
+  if(!db.patients.some(p=>!p.sample))return;
+  try{downloadBackup();setAutoFile({...a,last:today()});toast('آج کی بیک اپ فائل Downloads میں محفوظ ہو گئی')}catch(e){}
+},true);
 load();
+// اگر براؤزر کا ریکارڈ مٹ گیا ہو مگر خودکار بیک اپ موجود ہو تو خود واپس لے آئیں
+if(fresh)idbDo('readonly',st=>st.get('latest')).then(r=>{if(r&&r.data){const d=JSON.parse(r.data);if(Array.isArray(d.patients)&&d.patients.length){db=d;db.meds=db.meds||[];save();render();toast('پچھلا ریکارڈ خودکار بیک اپ سے واپس آ گیا')}}else autoSnap()}).catch(()=>{});else autoSnap();
 
 let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all',open:new Set(),per:'month',month:today().slice(0,7),year:today().slice(0,4)};
 const view=document.getElementById('view');
@@ -548,12 +577,24 @@ function renderBackup(){
   view.innerHTML=`
   <div class="card">
     <h2><span>ڈیٹا کہاں محفوظ ہے</span></h2>
-    <p>سارا کھاتہ اسی فون/براؤزر میں محفوظ رہتا ہے۔ براؤزر کی ہسٹری صاف کرنے یا فون بدلنے سے ڈیٹا ختم ہو سکتا ہے، اس لیے ہفتے میں ایک بار بیک اپ ضرور لیں۔</p>
+    <p>سارا کھاتہ اسی فون میں محفوظ رہتا ہے۔ ہر تبدیلی کے چند سیکنڈ بعد ایپ خودبخود اس کی دوسری کاپی بھی رکھ لیتی ہے۔ فون بدلنے یا براؤزر کا سارا ڈیٹا صاف کرنے سے بچاؤ کے لیے نیچے "روزانہ بیک اپ فائل" چالو رکھیں۔</p>
+  </div>
+  <div class="card">
+    <h2><span>خودکار بیک اپ ✅</span></h2>
+    <p class="note" id="autoInfo">دیکھ رہے ہیں…</p>
+    <div id="snapList"></div>
+    <p class="note">ہر دن کی ایک کاپی ${KEEP_DAYS} دن تک رکھی جاتی ہے۔ غلطی سے کچھ حذف ہو جائے تو پچھلے دن کی کاپی واپس لا سکتے ہیں۔</p>
+  </div>
+  <div class="card">
+    <h2><span>روزانہ بیک اپ فائل</span></h2>
+    <label class="switch"><input type="checkbox" id="afOn" ${autoFile().on?'checked':''}> ہر دن ایپ پہلی بار استعمال کرنے پر بیک اپ فائل خود فون کے Downloads میں محفوظ ہو</label>
+    <p class="note">${autoFile().last?'آخری فائل: '+fmtDate(autoFile().last)+' · ':''}یہ فائل براؤزر صاف کرنے پر بھی رہتی ہے۔ فون میں Google Drive / Files کا بیک اپ چالو ہو تو یہ کلاؤڈ میں بھی چلی جاتی ہے۔</p>
   </div>
   <div class="card">
     <h2><span>بیک اپ لیں</span></h2>
     <div class="actions">
       <button class="btn" id="dl">بیک اپ فائل ڈاؤن لوڈ کریں</button>
+      <button class="btn ghost" id="sh">Drive / واٹس ایپ پر بھیجیں</button>
       <button class="btn ghost" id="cp">بیک اپ کاپی کریں</button>
     </div>
     <p class="note">کاپی کیا ہوا متن واٹس ایپ پر خود کو بھیج کر بھی محفوظ کر سکتے ہیں۔</p>
@@ -568,7 +609,19 @@ function renderBackup(){
   </div>
   ${hasSample?`<div class="card"><h2><span>نمونہ ریکارڈ</span></h2><p>شروع میں سمجھانے کے لیے کچھ نمونہ مریض اور دوائیں ڈالی گئی ہیں۔</p><button class="btn danger" id="clrS">نمونہ ریکارڈ ہٹائیں</button></div>`:''}`;
   const json=()=>JSON.stringify(db);
-  document.getElementById('dl').onclick=()=>{try{const b=new Blob([json()],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mareez-khata-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();toast('بیک اپ فائل بن گئی')}catch(e){toast('ڈاؤن لوڈ نہیں ہوا — کاپی والا طریقہ استعمال کریں')}};
+  document.getElementById('dl').onclick=()=>{try{downloadBackup();toast('بیک اپ فائل بن گئی')}catch(e){toast('ڈاؤن لوڈ نہیں ہوا — کاپی والا طریقہ استعمال کریں')}};
+  document.getElementById('sh').onclick=async()=>{const f=new File([backupBlob()],'mareez-khata-'+today()+'.json',{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:'مریضوں کا کھاتہ — بیک اپ'})}catch(e){}}else{downloadBackup();toast('یہ فون شیئر نہیں کرتا — فائل ڈاؤن لوڈ ہو گئی')}};
+  document.getElementById('afOn').onchange=e=>{setAutoFile({...autoFile(),on:e.target.checked});toast(e.target.checked?'روزانہ بیک اپ فائل چالو':'روزانہ بیک اپ فائل بند')};
+  (async()=>{try{
+    const latest=await idbDo('readonly',st=>st.get('latest'));
+    const keys=(await idbDo('readonly',st=>st.getAllKeys())).filter(k=>String(k).startsWith('day-')).sort().reverse();
+    const recs=await Promise.all(keys.map(k=>idbDo('readonly',st=>st.get(k))));
+    const info=document.getElementById('autoInfo'),list=document.getElementById('snapList');if(!info)return;
+    info.textContent=latest?'آخری خودکار محفوظ: '+new Date(latest.ts).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):'ابھی کوئی خودکار بیک اپ نہیں';
+    list.innerHTML=keys.map((k,i)=>`<div class="entry"><div class="main"><b class="date">${fmtDate(k.slice(4))}</b> · ${recs[i]?.n??0} مریض</div><button class="btn ghost sm" data-snap="${k}">واپس لائیں</button></div>`).join('');
+    list.querySelectorAll('[data-snap]').forEach(b=>b.onclick=async()=>{const r=await idbDo('readonly',st=>st.get(b.dataset.snap));if(r)restore(r.data)});
+  }catch(e){const info=document.getElementById('autoInfo');if(info)info.textContent='یہ براؤزر خودکار بیک اپ نہیں کر سکتا — فائل والا بیک اپ لیں'}})();
   document.getElementById('cp').onclick=()=>{const t=document.getElementById('bk');t.value=json();t.hidden=false;navigator.clipboard?.writeText(t.value).then(()=>toast('بیک اپ کاپی ہو گیا'),()=>{t.select();toast('متن منتخب ہے — خود کاپی کریں')})||(t.select())};
   const restore=txt=>{try{const d=JSON.parse(txt);if(!Array.isArray(d.patients)||!Array.isArray(d.meds))throw 0;confirmBox('موجودہ سارا ڈیٹا بیک اپ سے بدل جائے گا۔',()=>{db=d;save();toast('بیک اپ واپس آ گیا');state.tab='patients';render()})}catch(e){toast('یہ درست بیک اپ نہیں ہے')}};
   document.getElementById('restore').onclick=()=>{const f=document.getElementById('fi').files[0];const t=document.getElementById('pastebk').value.trim();if(f){const r=new FileReader();r.onload=()=>restore(r.result);r.readAsText(f)}else if(t)restore(t);else toast('پہلے فائل چنیں یا متن پیسٹ کریں')};
