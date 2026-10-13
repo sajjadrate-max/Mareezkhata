@@ -1,5 +1,5 @@
 // مریضوں کا کھاتہ — آف لائن کے لیے سروس ورکر
-const CACHE = 'mareez-khata-v2';
+const CACHE = 'mareez-khata-v3';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-512-maskable.png', './apple-touch-icon.png', './favicon-32.png'];
 
 self.addEventListener('install', e => {

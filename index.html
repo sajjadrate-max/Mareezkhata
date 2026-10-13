@@ -64,10 +64,20 @@ label{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:.92re
 .row{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;cursor:pointer;box-shadow:var(--shadow)}
 .row .main{min-width:0}
 .row .name{font-weight:700;font-size:1.05rem}
-.pcard{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;box-shadow:var(--shadow)}
-.pcard:focus-visible{outline:3px solid var(--saffron);outline-offset:2px}
-.pcard .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:6px}
-.pcard .pname{font-family:var(--title);font-size:1.55rem;line-height:2.1;color:var(--accent);font-weight:700;overflow-wrap:anywhere}
+.pcard{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px 4px;box-shadow:var(--shadow)}
+.pcard summary{list-style:none;cursor:pointer}
+.pcard summary::-webkit-details-marker{display:none}
+.pcard summary:focus-visible{outline:3px solid var(--saffron);outline-offset:4px;border-radius:8px}
+.pcard .line{font-size:.97rem;overflow-wrap:anywhere;margin-top:2px}
+.pcard .lbl{color:var(--muted);font-weight:700}
+.pcard .pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:0 10px;font-size:.88rem;font-weight:700;margin:2px 0}
+.pcard .tri{display:flex;justify-content:center;margin-top:4px}
+.pcard .tri span{display:inline-flex;align-items:center;justify-content:center;width:44px;height:30px;border-radius:999px;background:var(--accent);color:var(--paper);font-size:.9rem;transition:transform .2s}
+.pcard[open] .tri span{transform:rotate(180deg)}
+.pcard .more{border-top:1px dashed var(--line);margin-top:6px;padding-block:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pcard .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.pcard .pname{font-family:var(--title);font-size:1.75rem;line-height:2.1;color:var(--accent);font-weight:700;overflow-wrap:anywhere}
 .pcard .head .chip{margin-top:12px}
 .pcard .pname .sample{font-family:var(--body);font-size:.75rem;font-weight:400;vertical-align:middle}
 .pcard dl.info{font-size:.95rem}
@@ -179,7 +189,7 @@ function load(){try{const r=localStorage.getItem(KEY);db=r?JSON.parse(r):seed()}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('محفوظ نہیں ہو سکا — براؤزر اسٹوریج بند ہے')}}
 load();
 
-let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all'};
+let state={tab:'patients',patientId:null,q:'',mq:'',filter:'all',open:new Set()};
 const view=document.getElementById('view');
 
 function toast(t){const el=document.createElement('div');el.className='toast';el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
@@ -199,29 +209,38 @@ function render(){
 }
 
 /* ---------- patients list ---------- */
-// ہر مریض کا مکمل کارڈ: سب سے اوپر بڑا نام، پھر ساری تفصیل اور دی گئی دوائیں
+// ہر مریض کا کارڈ: بڑا نام، بیماری اور دوائیں؛ نیچے تکون دبانے سے مکمل تفصیل
 function patientCard(p){
   const given=[...(p.given||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const f=[...(p.followups||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
   const total=given.reduce((s,g)=>s+(parseFloat(g.price)||0),0);
+  const medNames=[...new Set(given.map(g=>g.medName))];
   return `
-    <div class="pcard" tabindex="0" data-id="${p.id}">
-      <div class="head"><div class="pname">${esc(p.name)}${sampleTag(p)}</div>${chip(status(p))}</div>
-      <dl class="info">
-        ${p.phone?`<dt>فون</dt><dd>${esc(p.phone)}</dd>`:''}
-        ${p.age||p.gender?`<dt>عمر / جنس</dt><dd>${esc(p.age)} ${p.gender?'· '+esc(p.gender):''}</dd>`:''}
-        ${p.address?`<dt>پتہ</dt><dd>${esc(p.address)}</dd>`:''}
-        <dt>بیماریاں</dt><dd>${esc(p.diseases||'—')}</dd>
-        ${p.symptoms?`<dt>علامات</dt><dd>${esc(p.symptoms)}</dd>`:''}
-        ${p.notes?`<dt>نوٹ</dt><dd>${esc(p.notes)}</dd>`:''}
-        <dt>درج تاریخ</dt><dd class="date">${fmtDate(p.created)}</dd>
-      </dl>
-      <div class="sec">دی گئی دوائیں${given.length?` · کل Rs ${total.toLocaleString('en')}`:''}</div>
-      ${given.length?given.map(g=>`<div class="med"><b>${esc(g.medName)}</b>${g.qty?' · '+esc(g.qty):''}${g.price?' · Rs '+esc(g.price):''}
-        <div class="meta">${g.dose?'طریقہ: '+esc(g.dose):''}${g.days?' · '+esc(g.days)+' دن':''}${g.date?' · '+fmtDate(g.date):''}</div>${g.note?`<div class="meta">${esc(g.note)}</div>`:''}</div>`).join(''):'<div class="note">ابھی کوئی دوا نہیں دی گئی</div>'}
-      <div class="sec">آخری رابطہ</div>
-      ${f?`<div class="fu">${chip(f.result)} <span class="date">${fmtDate(f.date)}</span>${f.note?`<div>${esc(f.note)}</div>`:''}</div>`:'<div class="note">ابھی رابطہ درج نہیں</div>'}
-    </div>`;
+    <details class="pcard" data-id="${p.id}" ${state.open.has(p.id)?'open':''}>
+      <summary>
+        <div class="head"><div class="pname">${esc(p.name)}${sampleTag(p)}</div>${chip(status(p))}</div>
+        <div class="line"><span class="lbl">بیماری:</span> ${esc(p.diseases||'درج نہیں')}</div>
+        <div class="line"><span class="lbl">ادویات:</span> ${medNames.length?medNames.map(n=>`<span class="pill">${esc(n)}</span>`).join(' '):'ابھی کوئی دوا نہیں دی گئی'}</div>
+        <div class="tri" aria-hidden="true"><span>▼</span></div>
+        <span class="sr">مکمل تفصیل</span>
+      </summary>
+      <div class="more">
+        <dl class="info">
+          ${p.phone?`<dt>فون</dt><dd>${esc(p.phone)}</dd>`:''}
+          ${p.age||p.gender?`<dt>عمر / جنس</dt><dd>${esc(p.age)} ${p.gender?'· '+esc(p.gender):''}</dd>`:''}
+          ${p.address?`<dt>پتہ</dt><dd>${esc(p.address)}</dd>`:''}
+          ${p.symptoms?`<dt>علامات</dt><dd>${esc(p.symptoms)}</dd>`:''}
+          ${p.notes?`<dt>نوٹ</dt><dd>${esc(p.notes)}</dd>`:''}
+          <dt>درج تاریخ</dt><dd class="date">${fmtDate(p.created)}</dd>
+        </dl>
+        <div class="sec">دی گئی دوائیں${given.length?` · کل Rs ${total.toLocaleString('en')}`:''}</div>
+        ${given.length?given.map(g=>`<div class="med"><b>${esc(g.medName)}</b>${g.qty?' · '+esc(g.qty):''}${g.price?' · Rs '+esc(g.price):''}
+          <div class="meta">${g.dose?'طریقہ: '+esc(g.dose):''}${g.days?' · '+esc(g.days)+' دن':''}${g.date?' · '+fmtDate(g.date):''}</div>${g.note?`<div class="meta">${esc(g.note)}</div>`:''}</div>`).join(''):'<div class="note">ابھی کوئی دوا نہیں دی گئی</div>'}
+        <div class="sec">آخری رابطہ</div>
+        ${f?`<div class="fu">${chip(f.result)} <span class="date">${fmtDate(f.date)}</span>${f.note?`<div>${esc(f.note)}</div>`:''}</div>`:'<div class="note">ابھی رابطہ درج نہیں</div>'}
+        <div class="actions" style="margin-top:10px"><button class="btn sm" data-open="${p.id}">بدلیں / دوا دیں / رابطہ لکھیں</button></div>
+      </div>
+    </details>`;
 }
 function renderPatients(){
   const q=state.q.trim();
@@ -239,7 +258,8 @@ function renderPatients(){
   pq.oninput=()=>{state.q=pq.value;const pos=pq.selectionStart;renderPatients();const n=document.getElementById('pq');n.focus();n.setSelectionRange(pos,pos)};
   document.getElementById('addP').onclick=()=>patientForm();
   document.getElementById('goMeds').onclick=()=>{state.tab='meds';render()};
-  view.querySelectorAll('.pcard').forEach(r=>{const go=()=>{state.patientId=r.dataset.id;render()};r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go()}});
+  view.querySelectorAll('.pcard').forEach(d=>d.ontoggle=()=>{d.open?state.open.add(d.dataset.id):state.open.delete(d.dataset.id)});
+  view.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{state.patientId=b.dataset.open;render()});
 }
 
 /* ---------- patient detail ---------- */
