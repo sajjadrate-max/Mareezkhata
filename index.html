@@ -524,7 +524,7 @@ function formulaCard(f){
     <details class="pcard" data-id="${f.id}" ${state.open.has(f.id)?'open':''}>
       <summary>
         <div class="head"><div class="pname">${esc(f.name)}</div><span class="chip c-full">${mzLabel(f.mizaj)}</span></div>
-        <div class="line"><span class="lbl">ایک گولی کی قیمت:</span> ${f.price?'<b>Rs '+esc(f.price)+'</b>':'درج نہیں'}</div>
+        <div class="line"><span class="lbl">ایک گولی:</span> خرید ${f.cost?'<b>Rs '+esc(f.cost)+'</b>':'—'} · فروخت ${f.price?'<b>Rs '+esc(f.price)+'</b>':'—'}${f.cost&&f.price?` · <span class="profit">منافع ${rs(num(f.price)-num(f.cost))}</span>`:''}</div>
         ${f.benefits?`<div class="line clamp"><span class="lbl">فوائد:</span> ${esc(f.benefits)}</div>`:''}
         <div class="tri" aria-hidden="true"><span>▼</span></div>
         <span class="sr">مکمل نسخہ</span>
@@ -534,7 +534,11 @@ function formulaCard(f){
         ${ing.length?`<ul class="ing">${ing.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<div class="note">اجزا درج نہیں</div>'}
         ${sec('فوائد',f.benefits)}${sec('تیاری',f.prep)}${sec('خوراک / طریقہ',f.dose)}${sec('نوٹ',f.notes)}
         <div class="sec">ایک گولی کی قیمت (روپے)</div>
-        <div class="bar" style="margin:4px 0 0"><input inputmode="numeric" data-price="${f.id}" value="${esc(f.price)}" placeholder="مثلاً 10" style="flex:1;min-width:0"><button class="btn sm" data-psave="${f.id}">محفوظ</button></div>
+        <div class="grid2" style="margin-top:4px">
+          <label>خرید ریٹ<input inputmode="decimal" data-cost="${f.id}" value="${esc(f.cost)}" placeholder="مثلاً 5"></label>
+          <label>فروخت ریٹ<input inputmode="decimal" data-price="${f.id}" value="${esc(f.price)}" placeholder="مثلاً 10"></label>
+        </div>
+        <div class="actions" style="margin-top:6px"><button class="btn sm" data-psave="${f.id}">قیمت محفوظ کریں</button></div>
         <div class="actions" style="margin-top:10px"><button class="btn ghost sm" data-fedit="${f.id}">نسخہ بدلیں</button></div>
       </div>
     </details>`;
@@ -558,7 +562,7 @@ function renderFormulas(){
   document.getElementById('addF2').onclick=()=>formulaForm();
   view.querySelectorAll('[data-fm]').forEach(b=>b.onclick=()=>{state.fm=b.dataset.fm;renderFormulas()});
   view.querySelectorAll('.pcard').forEach(d=>d.ontoggle=()=>{d.open?state.open.add(d.dataset.id):state.open.delete(d.dataset.id)});
-  view.querySelectorAll('[data-psave]').forEach(b=>b.onclick=()=>{const f=db.formulas.find(x=>x.id===b.dataset.psave);const inp=view.querySelector(`[data-price="${f.id}"]`);f.price=inp.value.trim();save();toast('قیمت محفوظ ہو گئی');renderFormulas()});
+  view.querySelectorAll('[data-psave]').forEach(b=>b.onclick=()=>{const f=db.formulas.find(x=>x.id===b.dataset.psave);f.cost=view.querySelector(`[data-cost="${f.id}"]`).value.trim();f.price=view.querySelector(`[data-price="${f.id}"]`).value.trim();save();toast('قیمت محفوظ ہو گئی');renderFormulas()});
   view.querySelectorAll('[data-fedit]').forEach(b=>b.onclick=()=>formulaForm(db.formulas.find(x=>x.id===b.dataset.fedit)));
 }
 function formulaForm(f){
@@ -567,7 +571,8 @@ function formulaForm(f){
   <div class="grid2">
     <label class="full">نسخے کا نام *<input name="name" id="x-name" required value="${esc(v.name)}"></label>
     <label>مزاج نمبر<select name="mizaj" id="x-mizaj">${Object.entries(MIZAJ).map(([k,t])=>`<option value="${k}" ${v.mizaj===k?'selected':''}>${k} نمبر — ${t}</option>`).join('')}</select></label>
-    <label>ایک گولی کی قیمت (روپے)<input name="price" id="x-price" inputmode="numeric" value="${esc(v.price)}"></label>
+    <label>ایک گولی — خرید ریٹ<input name="cost" id="x-cost" inputmode="decimal" value="${esc(v.cost)}"></label>
+    <label>ایک گولی — فروخت ریٹ<input name="price" id="x-price" inputmode="decimal" value="${esc(v.price)}"></label>
     <label class="full">اجزا (ہر جز الگ لائن میں)<textarea name="ingredients" id="x-ing" style="min-height:120px" placeholder="کرنجوہ 1 تولہ">${esc(v.ingredients)}</textarea></label>
     <label class="full">فوائد / کن بیماریوں میں<textarea name="benefits" id="x-ben">${esc(v.benefits)}</textarea></label>
     <label class="full">تیاری<textarea name="prep" id="x-prep">${esc(v.prep)}</textarea></label>
