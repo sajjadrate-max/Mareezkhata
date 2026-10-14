@@ -447,7 +447,7 @@ function findItem(id){
 }
 // ترتیب: 1 نمبر سے 6 نمبر تک کے نسخے، آخر میں باقی دوائیں
 function itemGroups(){
-  const fs=[...(db.formulas||[])].sort((a,b)=>a.name.localeCompare(b.name,'ur'));
+  const fs=[...(db.formulas||[])].sort(fOrder);
   const groups=['1','2','3','4','5','6'].map(k=>[`${k} نمبر · ${MIZAJ[k]}`,fs.filter(f=>f.mizaj===k).map(f=>[f.id,f.name,f.price])]);
   groups.push(['دیگر دوائیں',[...db.meds].sort((a,b)=>a.name.localeCompare(b.name,'ur')).map(m=>[m.id,m.name,m.price])]);
   const other=fs.filter(f=>!MIZAJ[f.mizaj]);if(other.length)groups.push(['دیگر نسخے',other.map(f=>[f.id,f.name,f.price])]);
@@ -594,8 +594,12 @@ function ensureFormulas(){
   // نسخے کا نیا متن آئے (v بڑھے) تو متن بدل دیں، قیمتیں وہی رہیں
   FORMULA_SEED.forEach(f=>{const x=db.formulas.find(y=>y.id===f.id);if(x&&f.v&&(x.v||1)<f.v){Object.assign(x,{...f,cost:x.cost,price:x.price});changed=true}});
   FORMULA_SEED.forEach(f=>{if(!db.formulaSeeds.includes(f.id)){db.formulaSeeds.push(f.id);if(!db.formulas.some(x=>x.id===f.id))db.formulas.push({...f});changed=true}});
+  // ترتیب: حب سنگ دانہ مرغ 5 نمبر میں سب سے اوپر، 5 اکسیر اور اکسیر ورم اعظم سب سے نیچے
+  if((db.orderV||0)<1){const set=(id,o)=>{const x=db.formulas.find(y=>y.id===id);if(x)x.ord=o};set('f5-9',0);set('f5-4',900);set('f5-2',901);db.orderV=1;changed=true}
   return changed;
 }
+// ہر نمبر کے اندر ترتیب: پہلے ord (اگر ہو)، پھر نام
+const fOrder=(a,b)=>(a.ord??500)-(b.ord??500)||a.name.localeCompare(b.name,'ur');
 const mzLabel=m=>MIZAJ[m]?`${m} نمبر · ${MIZAJ[m]}`:'مزاج درج نہیں';
 function formulaCard(f){
   const ing=(f.ingredients||'').split('\n').map(x=>x.trim()).filter(Boolean);
@@ -625,7 +629,7 @@ function formulaCard(f){
 }
 function renderFormulas(){
   const q=state.fq.trim();
-  let list=[...db.formulas].sort((a,b)=>(a.mizaj||'9').localeCompare(b.mizaj||'9')||a.name.localeCompare(b.name,'ur'));
+  let list=[...db.formulas].sort((a,b)=>(a.mizaj||'9').localeCompare(b.mizaj||'9')||fOrder(a,b));
   if(state.fm!=='all')list=list.filter(f=>f.mizaj===state.fm);
   if(q)list=list.filter(f=>[f.name,f.ingredients,f.benefits,f.notes].join(' ').includes(q));
   view.innerHTML=`
